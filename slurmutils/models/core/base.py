@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2024-2025 Canonical Ltd.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -24,18 +24,18 @@ __all__ = [
     "parse_line",
 ]
 
-import copy
 import json
 import re
 import shlex
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, MutableMapping
-from typing import Any
+from collections.abc import Callable, Iterable, MutableMapping, Mapping
+from itertools import chain
+from typing import Any, Literal
 
 from jsonschema import ValidationError, validate
 from typing_extensions import Self
 
-from ..exceptions import ModelError
+from slurmutils.exceptions import ModelError
 
 _acronym = re.compile(r"(?<=[A-Z])(?=[A-Z][a-z])")
 _camelize = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -183,62 +183,98 @@ def marshall_content(options, line: MutableMapping[str, Any]) -> list[str]:
     return result
 
 
+
+
+
 class BaseModel(ABC):
     """Base model for Slurm data models."""
 
-    def __init__(self, validator=None, /, **kwargs) -> None:
-        for k, v in kwargs.items():
-            if not hasattr(validator, k):
-                raise ModelError(
-                    (
-                        f"unrecognized argument {k}. "
-                        + f"valid arguments are {list(validator.keys())}"
-                    )
-                )
+    def __init__(self, d: Mapping[str, Any] | None = None, /, **kwargs) -> None:
+        d = {**(d if d else {}), **kwargs}
 
-        self.data = kwargs
+        try:
+            d = expand(d)
+            validate(d, schema=self._schema)
+            self._data = json.loads(json.dumps(d), object_hook=self._decoder)
+        except ValidationError as e:
+            raise ModelError(e.message)
 
+    @classmethod
+    @abstractmethod
+    def from_str(cls, s: str, /) -> Self:
+        """Create model from Slurm configuration string."""
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any], /) -> Self:
+        """Create model from dictionary object."""
+        return cls(d)
+
+    @classmethod
+    def from_json(cls, o: str | bytes | bytearray, /) -> Self:
+        """Create model from JSON object."""
+        return cls(json.loads(o))
+
+    def dict(self) -> dict[str, Any]:
+        """Return model as dictionary."""
+        return expand(self._data)
+
+    def json(self) -> str:
+        """Return model as json object."""
+        return json.dumps(self.dict())
+
+    def update(self, other: Self) -> None:
+        """Update current data model content with content of other data model."""
+        self._data.update(other._data)
+
+    @property
+    @abstractmethod
+    def _schema(self) -> dict[str, Any]:
+        """Get data model JSON schema."""
+
+    @property
+    @abstractmethod
+    def _decoder(self) -> Callable[[Any], Any]:
+        """Get data model JSON decoder."""
+
+    # TODO: Might be able to get rid of this method. A little silly it exists.
     def _slice(self, exclude: Iterable[str]) -> dict[str, Any]:
         """Slice the internal data store by excluding specific keys.
 
         Args:
             exclude: List of keys to exclude from slice.
         """
-        return {k: v for k, v in self.data.items() if k not in exclude}
-
-    @classmethod
-    def from_dict(cls, data: MutableMapping[str, Any]):
-        """Construct new model from dictionary."""
-        return cls(**data)
-
-    @classmethod
-    def from_json(cls, obj: str):
-        """Construct new model from JSON object."""
-        data = json.loads(obj)
-        return cls.from_dict(data)
-
-    @classmethod
-    @abstractmethod
-    def from_str(cls, content: str):
-        """Construct data model from configuration string."""
+        return {k: v for k, v in self._data.items() if k not in exclude}
 
     @abstractmethod
-    def __str__(self) -> str:
-        """Return model as configuration string."""
-
-    def dict(self) -> dict[str, Any]:
-        """Return model as dictionary."""
-        return copy.deepcopy(self.data)
-
-    def json(self) -> str:
-        """Return model as json object."""
-        return json.dumps(self.dict())
-
-    def update(self, other) -> None:
-        """Update current data model content with content of other data model."""
-        self.data.update(other.data)
+    def __str__(self) -> str:  # noqa: D105
+        return _marshall(self, ..., mode="line")
+        # TODO: This might not need to be a descriptor at all.
+        pass
 
 
+class ModelMapping(BaseModel, ABC, MutableMapping[str, BaseModel]):
+    """Map of model primary keys to model instances."""
+
+    def __getitem__(self, key: str, /) -> Any:  # noqa D105
+        return self._data[key]
+
+    def __setitem__(self, key: str, value: Any, /) -> None:  # noqa D105
+        self._data[key] = value
+
+    def __delitem__(self, key: str, /) -> None:  # noqa D105
+        del self._data[key]
+
+    def __len__(self) -> int:  # noqa D105
+        return len(self._data)
+
+    def __iter__(self) -> Iterable[str]:  # noqa D105
+        return iter(self._data)
+
+    def __str__(self) -> str:  # noqa D105
+        return _marshall(self, mode="stanza")
+
+
+# TODO: Yoink this shee after messing with _marshall a bit.
 class BaseMapping(MutableMapping[str, Any], ABC):
     """Base map for Slurm data model mappings."""
 
@@ -300,3 +336,39 @@ class BaseMapping(MutableMapping[str, Any], ABC):
 
     def __iter__(self) -> Iterable[str]:  # noqa D105
         return iter(self._data)
+
+
+# TODO: I really don't want to return a list here. I'd rather just
+#   share the finished string.
+#   .
+#   Can't return string since every format needs to be manipulated differently.
+#
+def _marshall(model: BaseModel, options = None, mode: Literal["line", "stanza"] = "line") -> str:
+    """Marshall a data model back into it's Slurm configuration format.
+
+    Args:
+        model: Data model to marshall.
+        options:
+        mode:
+    """
+    out = []
+    data = model.dict()
+    for k, v in data.items():
+        if isinstance(v, BaseModel):
+            out.append(str(v))
+            continue
+
+        if options:
+            marshaller = getattr(options, k).marshaller
+            v = marshaller(v)
+
+        out.append(f"{k}={v}")
+
+    match mode:
+        case "line":
+            return " ".join(out)
+        case "stanza":
+            return "\n".join(out)
+        case _:
+            # TODO: Raise an error here.
+            ...

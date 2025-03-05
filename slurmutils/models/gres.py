@@ -23,9 +23,9 @@ from typing import Any
 
 from jsonschema import ValidationError, validate
 
-from .model import BaseMapping, BaseModel, clean, marshall_content, parse_line
-from .option import GRESConfigOptionSet, GRESNameOptionSet, GRESNodeOptionSet
-from .schema import (
+from slurmutils.models.core.base import BaseMapping, BaseModel, clean, marshall_content, parse_line
+from slurmutils.models.core.option import GRESConfigOptionSet, GRESNameOptionSet, GRESNodeOptionSet
+from slurmutils.models.core.schema import (
     GRES_NAME_MAPPING_SCHEMA,
     GRES_NAME_SCHEMA,
     GRES_NODE_MAPPING_SCHEMA,

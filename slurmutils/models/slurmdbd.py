@@ -14,8 +14,8 @@
 
 """Data models for `slurmdbd.conf` configuration file."""
 
-from .model import BaseModel, clean, format_key, generate_descriptors, marshall_content, parse_line
-from .option import SlurmdbdConfigOptionSet
+from slurmutils.models.core.base import BaseModel, clean, format_key, generate_descriptors, marshall_content, parse_line
+from slurmutils.models.core.option import SlurmdbdConfigOptionSet
 
 
 class SlurmdbdConfig(BaseModel):

@@ -29,10 +29,11 @@ __all__ = [
     "PartitionOptionSet",
 ]
 
+from collections.abc import Iterable
 from dataclasses import dataclass, fields
-from typing import Iterable
+from typing import Annotated
 
-from .callback import (
+from slurmutils.models.core.callback import (
     Callback,
     ColonSeparatorCallback,
     CommaSeparatorCallback,
@@ -423,7 +424,7 @@ class SlurmConfigOptionSet(_OptionSet):
 class NodeOptionSet(_OptionSet):
     """`slurm.conf` node configuration options."""
 
-    NodeName: Callback = Callback()
+    NodeName: Annotated[Callback, "primary"] = Callback()
     NodeHostname: Callback = Callback()
     NodeAddr: Callback = Callback()
     BcastAddr: Callback = Callback()
@@ -461,7 +462,7 @@ class DownNodeOptionSet(_OptionSet):
 class FrontendNodeOptionSet(_OptionSet):
     """`slurm.conf` frontend node configuration options."""
 
-    FrontendName: Callback = Callback()
+    FrontendName: Annotated[Callback, "primary"] = Callback()
     FrontendAddr: Callback = Callback()
     AllowGroups: Callback = CommaSeparatorCallback
     AllowUsers: Callback = CommaSeparatorCallback
@@ -476,7 +477,7 @@ class FrontendNodeOptionSet(_OptionSet):
 class NodeSetOptionSet(_OptionSet):
     """`slurm.conf` node set configuration options."""
 
-    NodeSet: Callback = Callback()
+    NodeSet: Annotated[Callback, "primary"] = Callback()
     Feature: Callback = Callback()
     Nodes: Callback = CommaSeparatorCallback
 
@@ -485,7 +486,7 @@ class NodeSetOptionSet(_OptionSet):
 class PartitionOptionSet(_OptionSet):
     """`slurm.conf` partition configuration options."""
 
-    PartitionName: Callback = Callback()
+    PartitionName: Annotated[Callback, "primary"] = Callback()
     AllocNodes: Callback = CommaSeparatorCallback
     AllowAccounts: Callback = CommaSeparatorCallback
     AllowGroups: Callback = CommaSeparatorCallback

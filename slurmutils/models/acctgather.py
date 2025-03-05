@@ -14,8 +14,8 @@
 
 """Data models for `acct_gather.conf` configuration file."""
 
-from .model import BaseModel, clean, format_key, generate_descriptors, marshall_content, parse_line
-from .option import AcctGatherConfigOptionSet
+from slurmutils.models.core.base import BaseModel, clean, format_key, generate_descriptors, marshall_content, parse_line
+from slurmutils.models.core.option import AcctGatherConfigOptionSet
 
 
 class AcctGatherConfig(BaseModel):

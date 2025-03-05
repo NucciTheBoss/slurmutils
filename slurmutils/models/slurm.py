@@ -26,8 +26,8 @@ __all__ = [
 import copy
 from typing import Any, Dict, List, Optional
 
-from .model import BaseModel, clean, format_key, generate_descriptors, marshall_content, parse_line
-from .option import (
+from slurmutils.models.core.base import BaseModel, clean, format_key, generate_descriptors, marshall_content, parse_line
+from slurmutils.models.core.option import (
     DownNodeOptionSet,
     FrontendNodeOptionSet,
     NodeOptionSet,
